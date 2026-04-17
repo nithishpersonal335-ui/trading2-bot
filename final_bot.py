@@ -79,17 +79,28 @@ send_msg("Cloud bot working ✅")
 while True:
     try:
         if is_market_open():
-            print("Checking...")
+            print("Market open - checking...")
 
             check("^NSEI", "NIFTY")
             check("^NSEBANK", "BANKNIFTY")
             check("^BSESN", "SENSEX")
 
-            time.sleep(300)
+            time.sleep(300)  # 5 min
 
         else:
-            print("Market closed")
-            time.sleep(60)
+            now = datetime.now()
+
+            # Calculate next market open time (9:15 AM)
+            next_open = now.replace(hour=9, minute=15, second=0)
+
+            if now.hour >= 15:  # after market close
+                next_open = next_open.replace(day=now.day + 1)
+
+            sleep_time = (next_open - now).total_seconds()
+
+            print(f"Sleeping until market open... ({int(sleep_time/60)} mins)")
+
+            time.sleep(max(60, sleep_time))
 
     except Exception as e:
         print("Error:", e)
