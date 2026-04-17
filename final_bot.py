@@ -74,6 +74,7 @@ def is_market_open():
     return start <= now <= end
 
 print("Bot Started...")
+send_msg("Cloud bot working ✅")
 
 while True:
     try:
