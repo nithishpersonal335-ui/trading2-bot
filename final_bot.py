@@ -72,6 +72,7 @@ def is_market_open():
 import pytz
 
 def is_market_open():
+    import pytz
     india = pytz.timezone("Asia/Kolkata")
     now = datetime.now(india)
 
