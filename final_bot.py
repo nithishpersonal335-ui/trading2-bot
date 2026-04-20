@@ -84,7 +84,7 @@ def is_market_open():
     india = pytz.timezone("Asia/Kolkata")
     now = datetime.now(india)
 
-    # Weekend check
+    # Weekend
     if now.weekday() >= 5:
         return False
 
@@ -106,24 +106,15 @@ while True:
             check("^NSEBANK", "BANKNIFTY")
             check("^BSESN", "SENSEX")
 
-            time.sleep(300)  # every 5 min
+            time.sleep(300)  # 5 minutes
 
         else:
-    india = pytz.timezone("Asia/Kolkata")
-    now = datetime.now(india)
+            print("Market closed - idle mode")
 
-    next_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
-
-    if now >= next_open:
-        next_open = next_open + timedelta(days=1)
-
-    sleep_time = (next_open - now).total_seconds()
-
-    print(f"Sleeping {int(sleep_time/60)} mins until market open")
-
-    for _ in range(int(sleep_time // 60)):
-        time.sleep(60)
-            
+            # Keep Railway alive (no long sleep)
+            for _ in range(60):  # 60 minutes loop
+                print("Idle heartbeat...")
+                time.sleep(60)
 
     except Exception as e:
         print("Error:", e)
