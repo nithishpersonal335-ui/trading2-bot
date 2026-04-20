@@ -68,9 +68,16 @@ def check(symbol, name):
             last_signal[name] = "SELL"
 
 def is_market_open():
-    now = datetime.now()
+    from datetime import datetime
+import pytz
+
+def is_market_open():
+    india = pytz.timezone("Asia/Kolkata")
+    now = datetime.now(india)
+
     start = now.replace(hour=9, minute=15, second=0)
     end = now.replace(hour=15, minute=30, second=0)
+
     return start <= now <= end
 
 print("Bot Started...")
