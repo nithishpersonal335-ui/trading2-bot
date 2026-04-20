@@ -109,19 +109,21 @@ while True:
             time.sleep(300)  # every 5 min
 
         else:
-            india = pytz.timezone("Asia/Kolkata")
-            now = datetime.now(india)
+    india = pytz.timezone("Asia/Kolkata")
+    now = datetime.now(india)
 
-            next_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
+    next_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
 
-            if now >= next_open:
-                next_open = next_open + timedelta(days=1)
+    if now >= next_open:
+        next_open = next_open + timedelta(days=1)
 
-            sleep_time = (next_open - now).total_seconds()
+    sleep_time = (next_open - now).total_seconds()
 
-            print(f"Sleeping {int(sleep_time/60)} mins until market open")
+    print(f"Sleeping {int(sleep_time/60)} mins until market open")
 
-            time.sleep(max(60, sleep_time))
+    for _ in range(int(sleep_time // 60)):
+        time.sleep(60)
+            
 
     except Exception as e:
         print("Error:", e)
