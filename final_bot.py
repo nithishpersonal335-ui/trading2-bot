@@ -4,130 +4,101 @@ from datetime import datetime
 import pytz
 from flask import Flask
 import threading
- 
+import os
+
 # ===== TELEGRAM =====
-BOT_TOKEN = "8285229070:AAGZQnCbjULqMUsZkmNMBSG9NCh3WlI2bNo"
-CHAT_ID = "1207682165"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 def send_msg(text):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=10)
-    except Exception as e:
-        print("Telegram error:", e)
+    except:
+        pass
 
 # ===== EMA =====
 def ema(prices, period):
     if len(prices) < period:
         return None
     k = 2 / (period + 1)
-    ema_val = prices[0]
+    val = prices[0]
     for p in prices:
-        ema_val = p * k + ema_val * (1 - k)
-    return ema_val
+        val = p * k + val * (1 - k)
+    return val
 
-# ===== FETCH DATA =====
+# ===== DATA =====
 def get_prices(symbol):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=5m&range=1d"
-        r = requests.get(url, timeout=10)
-
-        if r.status_code != 200:
-            print("API error:", r.status_code)
-            return []
-
-        data = r.json()
+        data = requests.get(url, timeout=10).json()
         closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
-        return [c for c in closes if c is not None]
-
-    except Exception as e:
-        print("Data fetch error:", e)
+        return [c for c in closes if c]
+    except:
         return []
 
 # ===== SIGNAL MEMORY =====
-last_signal = {
-    "NIFTY": None,
-    "BANKNIFTY": None,
-    "SENSEX": None
-}
+last_signal = {"NIFTY": None}
 
-# ===== CHECK CROSSOVER =====
+# ===== CHECK =====
 def check(symbol, name):
     prices = get_prices(symbol)
-
     if len(prices) < 30:
         return
 
-    ema9_prev = ema(prices[-21:-1], 9)
-    ema15_prev = ema(prices[-21:-1], 15)
+    e9_prev = ema(prices[-21:-1], 9)
+    e15_prev = ema(prices[-21:-1], 15)
+    e9_now = ema(prices[-20:], 9)
+    e15_now = ema(prices[-20:], 15)
 
-    ema9_now = ema(prices[-20:], 9)
-    ema15_now = ema(prices[-20:], 15)
-
-    if not all([ema9_prev, ema15_prev, ema9_now, ema15_now]):
+    if not all([e9_prev, e15_prev, e9_now, e15_now]):
         return
 
-    # BUY crossover
-    if ema9_prev < ema15_prev and ema9_now > ema15_now:
+    if e9_prev < e15_prev and e9_now > e15_now:
         if last_signal[name] != "BUY":
             send_msg(f"{name} ema crossing")
             last_signal[name] = "BUY"
-            print(name, "BUY signal")
 
-    # SELL crossover
-    elif ema9_prev > ema15_prev and ema9_now < ema15_now:
+    elif e9_prev > e15_prev and e9_now < e15_now:
         if last_signal[name] != "SELL":
             send_msg(f"{name} ema crossing")
             last_signal[name] = "SELL"
-            print(name, "SELL signal")
 
-# ===== MARKET TIME (IST) =====
-def is_market_open():
-    india = pytz.timezone("Asia/Kolkata")
-    now = datetime.now(india)
+# ===== TIME =====
+def market_open():
+    tz = pytz.timezone("Asia/Kolkata")
+    now = datetime.now(tz)
 
     if now.weekday() >= 5:
         return False
 
-    start = now.replace(hour=9, minute=15, second=0, microsecond=0)
-    end = now.replace(hour=15, minute=30, second=0, microsecond=0)
+    return (9,15) <= (now.hour, now.minute) <= (15,30)
 
-    return start <= now <= end
-
-# ===== BOT LOOP =====
+# ===== BOT =====
 def run_bot():
-    print("Bot Started...")
-    send_msg("Cloud bot working ✅")
+    send_msg("Bot started")
 
     while True:
-        try:
-            if is_market_open():
-                print("Market open - checking...")
+        tz = pytz.timezone("Asia/Kolkata")
+        now = datetime.now(tz)
 
-                check("^NSEI", "NIFTY")
-                check("^NSEBANK", "BANKNIFTY")
-                check("^BSESN", "SENSEX")
+        if market_open():
+            print("Running...")
+            check("^NSEI", "NIFTY")
+            time.sleep(300)
 
-                time.sleep(300)
+        else:
+            print("Market closed → stopping bot")
+            send_msg("Bot stopped (market closed)")
+            os._exit(0)   # 🔴 IMPORTANT: STOPS CONTAINER
 
-            else:
-                print("Market closed - idle mode")
-                time.sleep(300)
-
-        except Exception as e:
-            print("Error:", e)
-            time.sleep(60)
-
-# ===== FLASK SERVER =====
+# ===== WEB (keep alive when needed) =====
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Bot is running!"
+    return "Running"
 
-# ===== START =====
 if __name__ == "__main__":
-    t = threading.Thread(target=run_bot)
-    t.start()
-
+    threading.Thread(target=run_bot).start()
     app.run(host="0.0.0.0", port=8080)
