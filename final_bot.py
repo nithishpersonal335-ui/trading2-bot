@@ -1,7 +1,9 @@
 import requests
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
+from flask import Flask
+import threading
 
 # ===== TELEGRAM =====
 BOT_TOKEN = "8285229070:AAGZQnCbjULqMUsZkmNMBSG9NCh3WlI2bNo"
@@ -84,7 +86,6 @@ def is_market_open():
     india = pytz.timezone("Asia/Kolkata")
     now = datetime.now(india)
 
-    # Weekend
     if now.weekday() >= 5:
         return False
 
@@ -93,29 +94,40 @@ def is_market_open():
 
     return start <= now <= end
 
-# ===== MAIN LOOP =====
-print("Bot Started...")
-send_msg("Cloud bot working ✅")
+# ===== BOT LOOP =====
+def run_bot():
+    print("Bot Started...")
+    send_msg("Cloud bot working ✅")
 
-while True:
-    try:
-        if is_market_open():
-            print("Market open - checking...")
+    while True:
+        try:
+            if is_market_open():
+                print("Market open - checking...")
 
-            check("^NSEI", "NIFTY")
-            check("^NSEBANK", "BANKNIFTY")
-            check("^BSESN", "SENSEX")
+                check("^NSEI", "NIFTY")
+                check("^NSEBANK", "BANKNIFTY")
+                check("^BSESN", "SENSEX")
 
-            time.sleep(300)  # 5 minutes
+                time.sleep(300)
 
-        else:
-            print("Market closed - idle mode")
+            else:
+                print("Market closed - idle mode")
+                time.sleep(300)
 
-            # Keep Railway alive (no long sleep)
-            for _ in range(60):  # 60 minutes loop
-                print("Idle heartbeat...")
-                time.sleep(60)
+        except Exception as e:
+            print("Error:", e)
+            time.sleep(60)
 
-    except Exception as e:
-        print("Error:", e)
-        time.sleep(60)
+# ===== FLASK SERVER =====
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+# ===== START =====
+if __name__ == "__main__":
+    t = threading.Thread(target=run_bot)
+    t.start()
+
+    app.run(host="0.0.0.0", port=8080)
