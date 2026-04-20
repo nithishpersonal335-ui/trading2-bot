@@ -1,0 +1,12 @@
+name: Start Bot Daily
+
+on:
+  schedule:
+    - cron: '45 3 * * 1-5'   # 9:15 AM IST
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake Railway
+        run: curl https://worker-production-2e11.up.railway.app
