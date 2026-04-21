@@ -4,11 +4,12 @@ from datetime import datetime
 import pytz
 from flask import Flask
 import threading
-import os
 
 # ===== TELEGRAM =====
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+BOT_TOKEN = "YOUR_BOT_TOKEN"
+CHAT_ID = "YOUR_CHAT_ID"
+
+BOT_ACTIVE = False  # 🔴 switch
 
 def send_msg(text):
     try:
@@ -37,17 +38,18 @@ def get_prices(symbol):
     except:
         return []
 
-# ===== SIGNAL MEMORY =====
-last_signal = {"NIFTY": None}
+last_signal = None
 
-# ===== CHECK =====
-def check(symbol, name):
-    prices = get_prices(symbol)
+def check():
+    global last_signal
+
+    prices = get_prices("^NSEI")
     if len(prices) < 30:
         return
 
     e9_prev = ema(prices[-21:-1], 9)
     e15_prev = ema(prices[-21:-1], 15)
+
     e9_now = ema(prices[-20:], 9)
     e15_now = ema(prices[-20:], 15)
 
@@ -55,50 +57,76 @@ def check(symbol, name):
         return
 
     if e9_prev < e15_prev and e9_now > e15_now:
-        if last_signal[name] != "BUY":
-            send_msg(f"{name} ema crossing")
-            last_signal[name] = "BUY"
+        if last_signal != "BUY":
+            send_msg("NIFTY ema crossing")
+            last_signal = "BUY"
 
     elif e9_prev > e15_prev and e9_now < e15_now:
-        if last_signal[name] != "SELL":
-            send_msg(f"{name} ema crossing")
-            last_signal[name] = "SELL"
+        if last_signal != "SELL":
+            send_msg("NIFTY ema crossing")
+            last_signal = "SELL"
 
-# ===== TIME =====
-def market_open():
-    tz = pytz.timezone("Asia/Kolkata")
-    now = datetime.now(tz)
+# ===== TELEGRAM COMMANDS =====
+last_update_id = None
 
-    if now.weekday() >= 5:
-        return False
+def check_commands():
+    global BOT_ACTIVE, last_update_id
 
-    return (9,15) <= (now.hour, now.minute) <= (15,30)
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+        res = requests.get(url, timeout=10).json()
 
-# ===== BOT =====
+        for update in res.get("result", []):
+            uid = update["update_id"]
+
+            if last_update_id is not None and uid <= last_update_id:
+                continue
+
+            last_update_id = uid
+
+            msg = update.get("message", {}).get("text", "").lower()
+
+            if "/on" in msg:
+                BOT_ACTIVE = True
+                send_msg("Bot turned ON ✅")
+
+            elif "/off" in msg:
+                BOT_ACTIVE = False
+                send_msg("Bot turned OFF 🛑")
+
+    except:
+        pass
+
+# ===== BOT LOOP =====
 def run_bot():
-    send_msg("Bot started")
+    print("Bot Started")
+    send_msg("Cloud bot ready ✅")
 
     while True:
-        tz = pytz.timezone("Asia/Kolkata")
-        now = datetime.now(tz)
+        try:
+            check_commands()  # 👈 check ON/OFF
 
-        if market_open():
-            print("Running...")
-            check("^NSEI", "NIFTY")
-            time.sleep(300)
+            if BOT_ACTIVE:
+                print("Bot ACTIVE → checking market")
+                check()
+                time.sleep(300)
 
-        else:
-            print("Market closed → stopping bot")
-            send_msg("Bot stopped (market closed)")
-            os._exit(0)   # 🔴 IMPORTANT: STOPS CONTAINER
+            else:
+                print("Bot OFF → idle")
+                time.sleep(10)
 
-# ===== WEB (keep alive when needed) =====
+        except Exception as e:
+            print("Error:", e)
+            time.sleep(30)
+
+# ===== WEB SERVER =====
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Running"
+    return "Bot Running"
 
+# ===== START =====
 if __name__ == "__main__":
     threading.Thread(target=run_bot).start()
     app.run(host="0.0.0.0", port=8080)
